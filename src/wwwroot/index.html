@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webhook Receiver</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                        </svg>
+                    </div>
+                    <h1>Webhook Receiver</h1>
+                </div>
+                <div class="header-actions">
+                    <div class="connection-status" id="connectionStatus">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Connecting...</span>
+                    </div>
+                    <button class="btn btn-secondary" id="clearAllBtn" title="Clear all webhooks">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3,6 5,6 21,6"></polyline>
+                            <path d="M19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
+                        </svg>
+                        Clear All
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="main">
+            <div class="endpoint-info">
+                <div class="endpoint-card">
+                    <h3>Your Webhook Endpoint</h3>
+                    <div class="endpoint-url" id="endpointUrl">
+                        <code id="webhookUrl"></code>
+                        <button class="copy-btn" id="copyUrlBtn" title="Copy URL">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5,15H4a2,2 0 0,1-2-2V4a2,2 0 0,1,2-2h9a2,2 0 0,1,2,2v1"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <p class="endpoint-hint">Send POST, GET, PUT, or any HTTP request to this URL. Add a channel: <code>/api/webhook/my-channel</code></p>
+                </div>
+                <div class="stats-card">
+                    <div class="stat">
+                        <span class="stat-value" id="webhookCount">0</span>
+                        <span class="stat-label">Webhooks</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">24h</span>
+                        <span class="stat-label">Retention</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="webhooks-container">
+                <div class="webhooks-header">
+                    <h2>Incoming Webhooks</h2>
+                    <div class="filter-controls">
+                        <input type="text" class="search-input" id="searchInput" placeholder="Filter webhooks...">
+                    </div>
+                </div>
+                
+                <div class="webhooks-list" id="webhooksList">
+                    <div class="empty-state" id="emptyState">
+                        <div class="empty-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                            </svg>
+                        </div>
+                        <h3>No webhooks yet</h3>
+                        <p>Send a request to your webhook URL to see it appear here in real-time.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <template id="webhookTemplate">
+        <div class="webhook-card" data-id="">
+            <div class="webhook-header">
+                <div class="webhook-meta">
+                    <span class="method-badge"></span>
+                    <span class="webhook-path"></span>
+                    <span class="webhook-channel"></span>
+                </div>
+                <div class="webhook-actions">
+                    <span class="webhook-time"></span>
+                    <button class="btn-icon delete-btn" title="Delete">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="webhook-details">
+                <div class="webhook-section">
+                    <h4>Headers</h4>
+                    <pre class="code-block headers-content"></pre>
+                </div>
+                <div class="webhook-section body-section">
+                    <h4>Body <span class="content-type"></span></h4>
+                    <pre class="code-block body-content"></pre>
+                </div>
+                <div class="webhook-section meta-section">
+                    <div class="meta-grid">
+                        <div class="meta-item">
+                            <span class="meta-label">ID</span>
+                            <span class="meta-value webhook-id"></span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Source IP</span>
+                            <span class="meta-value source-ip"></span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Content Length</span>
+                            <span class="meta-value content-length"></span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Query String</span>
+                            <span class="meta-value query-string"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
+
