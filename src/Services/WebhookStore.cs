@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using Google.Cloud.Firestore;
+using Google.Cloud.Firestore.V1;
+using Google.Apis.Auth.OAuth2;
 using WebhookReceiver.Models;
 
 namespace WebhookReceiver.Services;
@@ -14,6 +16,9 @@ namespace WebhookReceiver.Services;
 /// When users log in: They get all webhooks from master (synced to their store).
 /// When users delete: Only their store is affected.
 /// When cleanup runs: Firebase scheduled function removes expired webhooks.
+/// 
+/// Credentials: Supports FIREBASE_SERVICE_ACCOUNT_JSON env var (for Azure App Service)
+/// or falls back to Application Default Credentials (local dev with GOOGLE_APPLICATION_CREDENTIALS).
 /// </summary>
 public class WebhookStore
 {
@@ -34,8 +39,41 @@ public class WebhookStore
     public WebhookStore(IConfiguration configuration, ILogger<WebhookStore> logger)
     {
         var projectId = configuration["Firebase:ProjectId"] ?? "webhook-receiver-ldeat";
-        _db = FirestoreDb.Create(projectId);
+        _db = CreateFirestoreDb(projectId, logger);
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Creates FirestoreDb using (in order of priority):
+    /// 1. FIREBASE_SERVICE_ACCOUNT_BASE64 env var (Azure App Service - base64 encoded JSON, recommended)
+    /// 2. FIREBASE_SERVICE_ACCOUNT_JSON env var (Azure App Service - raw JSON content)
+    /// 3. Application Default Credentials (local dev with GOOGLE_APPLICATION_CREDENTIALS file path)
+    /// </summary>
+    private static FirestoreDb CreateFirestoreDb(string projectId, ILogger logger)
+    {
+        // Option 1: Base64 encoded JSON (recommended for Azure - avoids escaping issues)
+        var base64Json = Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT_BASE64");
+        if (!string.IsNullOrEmpty(base64Json))
+        {
+            logger.LogInformation("Using FIREBASE_SERVICE_ACCOUNT_BASE64 environment variable for Firestore credentials");
+            var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(base64Json));
+            var credential = GoogleCredential.FromJson(json);
+            var builder = new FirestoreClientBuilder { Credential = credential };
+            return FirestoreDb.Create(projectId, builder.Build());
+        }
+        
+        // Option 2: Raw JSON (may have escaping issues on some platforms)
+        var serviceAccountJson = Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT_JSON");
+        if (!string.IsNullOrEmpty(serviceAccountJson))
+        {
+            logger.LogInformation("Using FIREBASE_SERVICE_ACCOUNT_JSON environment variable for Firestore credentials");
+            var credential = GoogleCredential.FromJson(serviceAccountJson);
+            var builder = new FirestoreClientBuilder { Credential = credential };
+            return FirestoreDb.Create(projectId, builder.Build());
+        }
+        
+        logger.LogInformation("Using Application Default Credentials for Firestore");
+        return FirestoreDb.Create(projectId);
     }
 
     /// <summary>
