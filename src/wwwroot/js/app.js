@@ -80,6 +80,11 @@ class WebhookDashboard {
             }
         });
 
+        // Restore all button
+        document.getElementById('restoreAllBtn').addEventListener('click', () => {
+            this.restoreAll();
+        });
+
         // Search input
         document.getElementById('searchInput').addEventListener('input', (e) => {
             this.searchTerm = e.target.value.toLowerCase();
@@ -135,6 +140,15 @@ class WebhookDashboard {
         this.connection.on('AllCleared', () => {
             this.webhooks.clear();
             this.renderWebhooks();
+        });
+
+        this.connection.on('AllRestored', (entries) => {
+            this.webhooks.clear();
+            entries.forEach(entry => {
+                this.webhooks.set(entry.id, entry);
+            });
+            this.renderWebhooks();
+            this.showToast(`Restored ${entries.length} webhooks`);
         });
 
         // Start connection
@@ -332,6 +346,15 @@ class WebhookDashboard {
             await authManager.fetchWithAuth('/api/webhooks', { method: 'DELETE' });
             this.webhooks.clear();
             this.renderWebhooks();
+        }
+    }
+
+    async restoreAll() {
+        try {
+            await this.connection.invoke('RestoreAll');
+        } catch (err) {
+            console.error('Restore error:', err);
+            this.showToast('Failed to restore webhooks');
         }
     }
 

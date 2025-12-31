@@ -1,0 +1,24 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Master webhooks collection - server-only access (Admin SDK bypasses rules)
+    // No client access allowed
+    match /webhooks/{webhookId} {
+      allow read, write: if false;
+    }
+    
+    // Per-user webhook views
+    // Users can only read/write their own webhooks subcollection
+    match /user_webhooks/{userEmail}/webhooks/{webhookId} {
+      allow read, write: if request.auth != null 
+        && request.auth.token.email.lower() == userEmail.lower();
+    }
+    
+    // Deny access to user_webhooks documents (only subcollections allowed)
+    match /user_webhooks/{userEmail} {
+      allow read, write: if false;
+    }
+  }
+}

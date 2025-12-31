@@ -14,10 +14,8 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 
-// Configuration
+// Configuration - email validation moved to server-side
 const AUTH_CONFIG = {
-  allowedDomains: ["ldeat.com"],
-  allowedEmails: ["fabioscopel99@gmail.com", "fabiob.scopel@gmail.com"],
   sessionDurationHours: 48,
   storageKeys: {
     loginTime: "webhook_login_time",
@@ -32,20 +30,24 @@ class AuthManager {
     this.currentUser = null;
   }
 
-  // Check if email is allowed
-  isEmailAllowed(email) {
-    if (!email) return false;
+  // Validate email on server - returns { valid: boolean, error?: string }
+  async validateEmailOnServer(email) {
+    try {
+      const response = await fetch("/api/auth/validate-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
 
-    const emailLower = email.toLowerCase().trim();
-
-    // Check whitelist
-    if (AUTH_CONFIG.allowedEmails.includes(emailLower)) {
-      return true;
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("Server validation error:", error);
+      return {
+        valid: false,
+        error: "Unable to validate email. Please try again.",
+      };
     }
-
-    // Check domain
-    const domain = emailLower.split("@")[1];
-    return AUTH_CONFIG.allowedDomains.includes(domain);
   }
 
   // Check if session is still valid (within 48 hours)
@@ -122,15 +124,16 @@ class AuthManager {
   }
 
   // Check authentication state
+  // Note: Email authorization is enforced server-side via FirebaseAuthMiddleware
   async checkAuth() {
     return new Promise((resolve) => {
       auth.onAuthStateChanged((user) => {
-        if (user && this.isSessionValid() && this.isEmailAllowed(user.email)) {
+        if (user && this.isSessionValid()) {
           this.currentUser = user;
           resolve(user);
         } else {
           if (user) {
-            // User exists but session expired or email not allowed
+            // User exists but session expired
             this.signOut();
           }
           resolve(null);
@@ -224,22 +227,19 @@ if (
         return;
       }
 
-      // Validate email domain BEFORE contacting Firebase
-      if (!authManager.isEmailAllowed(email)) {
-        const domain = email.split("@")[1] || "";
-        if (domain && domain !== "ldeat.com") {
-          showError(
-            `Access restricted to @ldeat.com emails. "${domain}" is not authorized.`
-          );
-        } else {
-          showError("Please use your @ldeat.com email address");
-        }
-        return;
-      }
-
       setLoading(true);
 
       try {
+        // Validate email on server BEFORE sending Firebase link
+        const validation = await authManager.validateEmailOnServer(email);
+
+        if (!validation.valid) {
+          showError(validation.error || "This email is not authorized.");
+          setLoading(false);
+          return;
+        }
+
+        // Server approved - now send Firebase sign-in link
         await authManager.sendSignInLink(email);
         sentEmail.textContent = email;
         showStep("sent");

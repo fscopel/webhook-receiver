@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
 using WebhookReceiver.Hubs;
 using WebhookReceiver.Middleware;
@@ -10,7 +11,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<WebhookStore>();
 builder.Services.AddSingleton<FirebaseAuthService>();
-builder.Services.AddHostedService<CleanupService>();
 
 // Configure CORS for SignalR
 builder.Services.AddCors(options =>
@@ -28,31 +28,27 @@ var app = builder.Build();
 
 app.UseCors();
 
-// In Production, serve minified/obfuscated files from wwwroot-dist
-// In Development, serve readable source files from wwwroot
-if (app.Environment.IsProduction())
+// Serve static files - prefer minified/obfuscated files from wwwroot-dist if available
+// In Development mode, always serve readable source files from wwwroot
+var distPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot-dist");
+var useMinified = !app.Environment.IsDevelopment() && Directory.Exists(distPath);
+
+if (useMinified)
 {
-    var distPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot-dist");
-    if (Directory.Exists(distPath))
+    app.Logger.LogInformation("Serving minified files from wwwroot-dist (Environment: {Env})", app.Environment.EnvironmentName);
+    app.UseDefaultFiles(new DefaultFilesOptions
     {
-        app.UseDefaultFiles(new DefaultFilesOptions
-        {
-            FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(distPath)
-        });
-        app.UseStaticFiles(new StaticFileOptions
-        {
-            FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(distPath)
-        });
-    }
-    else
+        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(distPath)
+    });
+    app.UseStaticFiles(new StaticFileOptions
     {
-        // Fallback to wwwroot if dist doesn't exist
-        app.UseDefaultFiles();
-        app.UseStaticFiles();
-    }
+        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(distPath)
+    });
 }
 else
 {
+    app.Logger.LogInformation("Serving source files from wwwroot (Environment: {Env}, DistExists: {DistExists})", 
+        app.Environment.EnvironmentName, Directory.Exists(distPath));
     app.UseDefaultFiles();
     app.UseStaticFiles();
 }
@@ -66,40 +62,117 @@ app.MapHub<WebhookHub>("/webhookhub");
 // Health check endpoint
 app.MapGet("/api/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
-// Get all webhooks
-app.MapGet("/api/webhooks", (WebhookStore store) => Results.Ok(store.GetAll()));
-
-// Get single webhook
-app.MapGet("/api/webhooks/{id}", (string id, WebhookStore store) =>
+// Email validation endpoint - called BEFORE sending Firebase sign-in link
+// This is a PUBLIC endpoint (no auth required) - validates if email is allowed
+app.MapPost("/api/auth/validate-email", (EmailValidationRequest request) =>
 {
-    var entry = store.Get(id);
+    if (string.IsNullOrWhiteSpace(request.Email))
+    {
+        return Results.BadRequest(new { valid = false, error = "Email is required" });
+    }
+    
+    var email = request.Email.Trim().ToLowerInvariant();
+    
+    if (!IsValidEmailFormat(email))
+    {
+        return Results.BadRequest(new { valid = false, error = "Please enter a valid email address" });
+    }
+    
+    if (FirebaseAuthService.IsEmailAuthorized(email))
+    {
+        return Results.Ok(new { valid = true });
+    }
+    
+    var domain = email.Split('@').LastOrDefault() ?? "";
+    return Results.Ok(new { 
+        valid = false, 
+        error = $"Access restricted to @ldeat.com emails. \"{domain}\" is not authorized."
+    });
+});
+
+static bool IsValidEmailFormat(string email)
+{
+    try
+    {
+        var addr = new System.Net.Mail.MailAddress(email);
+        return addr.Address == email;
+    }
+    catch
+    {
+        return false;
+    }
+}
+
+record EmailValidationRequest(string Email);
+
+// Get all webhooks - returns only the requesting user's webhooks
+app.MapGet("/api/webhooks", async (HttpContext context, WebhookStore store) =>
+{
+    var userEmail = GetUserEmail(context);
+    if (string.IsNullOrEmpty(userEmail))
+    {
+        return Results.Unauthorized();
+    }
+    var entries = await store.GetAllAsync(userEmail);
+    return Results.Ok(entries);
+});
+
+// Get single webhook - from the requesting user's store
+app.MapGet("/api/webhooks/{id}", async (string id, HttpContext context, WebhookStore store) =>
+{
+    var userEmail = GetUserEmail(context);
+    if (string.IsNullOrEmpty(userEmail))
+    {
+        return Results.Unauthorized();
+    }
+    
+    var entry = await store.GetAsync(userEmail, id);
     return entry is not null ? Results.Ok(entry) : Results.NotFound();
 });
 
-// Delete single webhook
-app.MapDelete("/api/webhooks/{id}", async (string id, WebhookStore store, IHubContext<WebhookHub> hub) =>
+// Delete single webhook - only from the requesting user's store
+app.MapDelete("/api/webhooks/{id}", async (string id, HttpContext context, WebhookStore store, IHubContext<WebhookHub> hub) =>
 {
-    if (store.Delete(id))
+    var userEmail = GetUserEmail(context);
+    if (string.IsNullOrEmpty(userEmail))
     {
-        await hub.Clients.All.SendAsync("EntryDeleted", id);
+        return Results.Unauthorized();
+    }
+    
+    if (await store.DeleteAsync(userEmail, id))
+    {
+        // Notify only this user's connections
+        await hub.Clients.Group(userEmail).SendAsync("EntryDeleted", id);
         return Results.Ok();
     }
     return Results.NotFound();
 });
 
-// Clear all webhooks
-app.MapDelete("/api/webhooks", async (WebhookStore store, IHubContext<WebhookHub> hub) =>
+// Clear all webhooks - only from the requesting user's store
+app.MapDelete("/api/webhooks", async (HttpContext context, WebhookStore store, IHubContext<WebhookHub> hub) =>
 {
-    var count = store.Clear();
-    await hub.Clients.All.SendAsync("AllCleared");
+    var userEmail = GetUserEmail(context);
+    if (string.IsNullOrEmpty(userEmail))
+    {
+        return Results.Unauthorized();
+    }
+    
+    var count = await store.ClearAsync(userEmail);
+    // Notify only this user's connections
+    await hub.Clients.Group(userEmail).SendAsync("AllCleared");
     return Results.Ok(new { deleted = count });
 });
 
 // Webhook receiver endpoint - catches all methods and paths under /api/webhook
+// This is a PUBLIC endpoint - webhooks are added to master store AND all active users
 app.Map("/api/webhook/{*path}", async (HttpContext context, WebhookStore store, IHubContext<WebhookHub> hub) =>
 {
     var entry = await CaptureWebhook(context);
-    store.Add(entry);
+    
+    // Add to master store AND all active users' stores (Firestore)
+    await store.AddAsync(entry);
+    
+    // Broadcast to all connected clients
     await hub.Clients.All.SendAsync("NewWebhook", entry);
     
     return Results.Ok(new 
@@ -114,7 +187,11 @@ app.Map("/api/webhook/{*path}", async (HttpContext context, WebhookStore store, 
 app.Map("/api/webhook", async (HttpContext context, WebhookStore store, IHubContext<WebhookHub> hub) =>
 {
     var entry = await CaptureWebhook(context);
-    store.Add(entry);
+    
+    // Add to master store AND all active users' stores (Firestore)
+    await store.AddAsync(entry);
+    
+    // Broadcast to all connected clients
     await hub.Clients.All.SendAsync("NewWebhook", entry);
     
     return Results.Ok(new 
@@ -126,6 +203,14 @@ app.Map("/api/webhook", async (HttpContext context, WebhookStore store, IHubCont
 });
 
 app.Run();
+
+// Helper function to get user email from HttpContext
+static string? GetUserEmail(HttpContext context)
+{
+    var email = context.User?.FindFirst(ClaimTypes.Email)?.Value 
+             ?? context.User?.FindFirst("email")?.Value;
+    return email?.ToLowerInvariant().Trim();
+}
 
 // Helper function to capture webhook details
 static async Task<WebhookEntry> CaptureWebhook(HttpContext context)

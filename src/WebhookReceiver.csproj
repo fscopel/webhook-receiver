@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+    <PackageReference Include="Google.Cloud.Firestore" Version="3.4.0" />
   </ItemGroup>
 
   <!-- Run npm install and build before publishing -->

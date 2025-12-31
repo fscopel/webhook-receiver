@@ -6,5 +6,18 @@
       "**/.*",
       "**/node_modules/**"
     ]
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "nam5",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "functions": {
+    "source": "functions",
+    "codebase": "webhook-cleanup",
+    "predeploy": [
+      "npm --prefix \"$RESOURCE_DIR\" install"
+    ]
   }
 }

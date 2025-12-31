@@ -22,7 +22,8 @@ public class FirebaseAuthMiddleware
     private static readonly string[] PublicPaths = 
     {
         "/api/webhook/",  // Webhook receiver with path - must be open!
-        "/api/health"     // Health check
+        "/api/health",    // Health check
+        "/api/auth/"      // Auth endpoints (email validation before login)
     };
     
     // Exact public paths (not prefix matching)
