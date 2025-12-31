@@ -178,15 +178,18 @@ public class WebhookStore
     public async Task<IEnumerable<WebhookEntry>> GetAllAsync(string userEmail)
     {
         var email = NormalizeEmail(userEmail);
+        // Simple query - just order by ReceivedAt, filter expired in memory
+        // This avoids needing a composite index
         var query = _db.Collection(UserWebhooksCollection)
             .Document(email)
             .Collection(WebhooksSubcollection)
-            .WhereGreaterThan("ExpiresAt", DateTime.UtcNow)
             .OrderByDescending("ReceivedAt");
         var snapshot = await query.GetSnapshotAsync();
         
+        var now = DateTime.UtcNow;
         return snapshot.Documents
             .Select(d => d.ConvertTo<WebhookEntry>())
+            .Where(e => e.ExpiresAt > now) // Filter expired in memory
             .ToList();
     }
 

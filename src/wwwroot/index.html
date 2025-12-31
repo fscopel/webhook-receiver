@@ -168,6 +168,23 @@
         </div>
     </template>
 
+    <!-- Confirm Dialog -->
+    <div class="dialog-overlay" id="confirmDialog">
+        <div class="dialog-box">
+            <div class="dialog-icon warning">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <h3 class="dialog-title" id="dialogTitle">Clear All Webhooks?</h3>
+            <p class="dialog-message" id="dialogMessage">This will remove all webhooks from your view.</p>
+            <div class="dialog-buttons">
+                <button class="btn btn-secondary" id="dialogCancel">Cancel</button>
+                <button class="btn btn-danger" id="dialogConfirm">Clear All</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>

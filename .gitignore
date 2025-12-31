@@ -54,6 +54,9 @@ publish/
 appsettings.Development.json
 appsettings.Local.json
 
+# Firebase
+firebase-service-account.json
+
 # Node.js
 node_modules/
 
