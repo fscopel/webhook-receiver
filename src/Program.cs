@@ -90,21 +90,6 @@ app.MapPost("/api/auth/validate-email", (EmailValidationRequest request) =>
     });
 });
 
-static bool IsValidEmailFormat(string email)
-{
-    try
-    {
-        var addr = new System.Net.Mail.MailAddress(email);
-        return addr.Address == email;
-    }
-    catch
-    {
-        return false;
-    }
-}
-
-record EmailValidationRequest(string Email);
-
 // Get all webhooks - returns only the requesting user's webhooks
 app.MapGet("/api/webhooks", async (HttpContext context, WebhookStore store) =>
 {
@@ -249,3 +234,19 @@ static async Task<WebhookEntry> CaptureWebhook(HttpContext context)
         ContentLength = request.ContentLength ?? body?.Length ?? 0
     };
 }
+
+static bool IsValidEmailFormat(string email)
+{
+    try
+    {
+        var addr = new System.Net.Mail.MailAddress(email);
+        return addr.Address == email;
+    }
+    catch
+    {
+        return false;
+    }
+}
+
+// Type declarations must come after all top-level statements
+record EmailValidationRequest(string Email);
