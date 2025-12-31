@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-    <div class="app">
+    <div class="app" id="app" style="display: none;">
         <header class="header">
             <div class="header-content">
                 <div class="logo">
@@ -22,6 +22,17 @@
                     <h1>Webhook Receiver</h1>
                 </div>
                 <div class="header-actions">
+                    <div class="user-info" id="userInfo">
+                        <span class="user-email" id="userEmail"></span>
+                        <button class="btn btn-secondary btn-small" id="logoutBtn" title="Sign out">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"></path>
+                                <polyline points="16,17 21,12 16,7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                            Sign Out
+                        </button>
+                    </div>
                     <div class="connection-status" id="connectionStatus">
                         <span class="status-dot"></span>
                         <span class="status-text">Connecting...</span>
@@ -87,6 +98,18 @@
         </main>
     </div>
 
+    <!-- Loading state while checking auth -->
+    <div class="auth-loading" id="authLoading">
+        <div class="auth-loading-content">
+            <div class="logo-icon large">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                </svg>
+            </div>
+            <p>Loading...</p>
+        </div>
+    </div>
+
     <template id="webhookTemplate">
         <div class="webhook-card" data-id="">
             <div class="webhook-header">
@@ -138,8 +161,13 @@
         </div>
     </template>
 
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="/js/auth.js"></script>
+    
+    <!-- SignalR and App -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
     <script src="/js/app.js"></script>
 </body>
 </html>
-

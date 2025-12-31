@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using WebhookReceiver.Hubs;
+using WebhookReceiver.Middleware;
 using WebhookReceiver.Models;
 using WebhookReceiver.Services;
 
@@ -8,6 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<WebhookStore>();
+builder.Services.AddSingleton<FirebaseAuthService>();
 builder.Services.AddHostedService<CleanupService>();
 
 // Configure CORS for SignalR
@@ -25,8 +27,38 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseCors();
-app.UseDefaultFiles();
-app.UseStaticFiles();
+
+// In Production, serve minified/obfuscated files from wwwroot-dist
+// In Development, serve readable source files from wwwroot
+if (app.Environment.IsProduction())
+{
+    var distPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot-dist");
+    if (Directory.Exists(distPath))
+    {
+        app.UseDefaultFiles(new DefaultFilesOptions
+        {
+            FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(distPath)
+        });
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(distPath)
+        });
+    }
+    else
+    {
+        // Fallback to wwwroot if dist doesn't exist
+        app.UseDefaultFiles();
+        app.UseStaticFiles();
+    }
+}
+else
+{
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
+}
+
+// Firebase authentication middleware - validates tokens and enforces email domain restrictions
+app.UseFirebaseAuth();
 
 // Map SignalR hub
 app.MapHub<WebhookHub>("/webhookhub");

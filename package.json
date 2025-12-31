@@ -1,0 +1,21 @@
+{
+  "name": "webhook-receiver-build",
+  "version": "1.0.0",
+  "description": "Build tools for minifying and obfuscating frontend files",
+  "private": true,
+  "scripts": {
+    "clean": "node build/clean.js",
+    "build": "npm run clean && npm run build:js && npm run build:css && npm run build:html && npm run copy:assets",
+    "build:js": "node build/build-js.js",
+    "build:css": "node build/build-css.js", 
+    "build:html": "node build/build-html.js",
+    "copy:assets": "node build/copy-assets.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "javascript-obfuscator": "^4.1.1",
+    "html-minifier-terser": "^7.2.0",
+    "clean-css": "^5.3.3"
+  }
+}
+

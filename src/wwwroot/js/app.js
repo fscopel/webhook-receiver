@@ -5,13 +5,61 @@ class WebhookDashboard {
         this.connection = null;
         this.webhooks = new Map();
         this.searchTerm = '';
+        this.user = null;
         
         this.init();
     }
 
     async init() {
+        // Check authentication first
+        const isAuthenticated = await this.checkAuthentication();
+        if (!isAuthenticated) {
+            return; // Will redirect to login
+        }
+        
         this.setupUI();
+        this.setupAuthUI();
         await this.connectSignalR();
+    }
+
+    async checkAuthentication() {
+        const authLoading = document.getElementById('authLoading');
+        const app = document.getElementById('app');
+        
+        try {
+            this.user = await authManager.checkAuth();
+            
+            if (!this.user) {
+                // Not authenticated, redirect to login
+                window.location.href = '/login.html';
+                return false;
+            }
+            
+            // Authenticated, show the app
+            authLoading.style.display = 'none';
+            app.style.display = 'flex';
+            return true;
+        } catch (error) {
+            console.error('Auth check error:', error);
+            window.location.href = '/login.html';
+            return false;
+        }
+    }
+
+    setupAuthUI() {
+        // Display user email
+        const userEmail = document.getElementById('userEmail');
+        if (userEmail && this.user) {
+            userEmail.textContent = this.user.email;
+        }
+        
+        // Logout button
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                await authManager.signOut();
+            });
+        }
     }
 
     setupUI() {
@@ -40,8 +88,13 @@ class WebhookDashboard {
     }
 
     async connectSignalR() {
+        // Get Firebase token for server-side authentication
+        const token = await authManager.getIdToken();
+        
         this.connection = new signalR.HubConnectionBuilder()
-            .withUrl('/webhookhub')
+            .withUrl('/webhookhub', {
+                accessTokenFactory: () => token
+            })
             .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
             .configureLogging(signalR.LogLevel.Information)
             .build();
@@ -263,8 +316,8 @@ class WebhookDashboard {
             await this.connection.invoke('DeleteEntry', id);
         } catch (err) {
             console.error('Delete error:', err);
-            // Fallback to REST API
-            await fetch(`/api/webhooks/${id}`, { method: 'DELETE' });
+            // Fallback to REST API with authentication
+            await authManager.fetchWithAuth(`/api/webhooks/${id}`, { method: 'DELETE' });
             this.webhooks.delete(id);
             this.renderWebhooks();
         }
@@ -275,8 +328,8 @@ class WebhookDashboard {
             await this.connection.invoke('ClearAll');
         } catch (err) {
             console.error('Clear error:', err);
-            // Fallback to REST API
-            await fetch('/api/webhooks', { method: 'DELETE' });
+            // Fallback to REST API with authentication
+            await authManager.fetchWithAuth('/api/webhooks', { method: 'DELETE' });
             this.webhooks.clear();
             this.renderWebhooks();
         }

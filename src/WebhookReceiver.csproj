@@ -7,4 +7,24 @@
     <RootNamespace>WebhookReceiver</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- Run npm install and build before publishing -->
+  <Target Name="NpmInstall" BeforeTargets="NpmBuild">
+    <Message Importance="high" Text="Running npm install..." />
+    <Exec Command="npm install" WorkingDirectory="$(ProjectDir).." />
+  </Target>
+
+  <Target Name="NpmBuild" BeforeTargets="BeforePublish">
+    <Message Importance="high" Text="Building minified/obfuscated frontend files..." />
+    <Exec Command="npm run build" WorkingDirectory="$(ProjectDir).." />
+  </Target>
+
+  <!-- Include wwwroot-dist in publish output -->
+  <ItemGroup>
+    <Content Include="wwwroot-dist\**\*" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

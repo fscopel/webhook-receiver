@@ -20,7 +20,6 @@ obj/
 [Rr]elease/
 x64/
 x86/
-build/
 [Bb]in/
 [Oo]bj/
 
@@ -54,4 +53,11 @@ publish/
 # Application
 appsettings.Development.json
 appsettings.Local.json
+
+# Node.js
+node_modules/
+package-lock.json
+
+# Frontend build output (generated files)
+src/wwwroot-dist/
 
