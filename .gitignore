@@ -56,7 +56,6 @@ appsettings.Local.json
 
 # Node.js
 node_modules/
-package-lock.json
 
 # Frontend build output (generated files)
 src/wwwroot-dist/
